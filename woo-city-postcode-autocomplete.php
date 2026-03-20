@@ -25,6 +25,7 @@ $geo_cl_update_checker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpd
     'woo-city-postcode-autocomplete'
 );
 $geo_cl_update_checker->setBranch( 'main' );
+$geo_cl_update_checker->getVcsApi()->enableReleaseAssets(); 
 
 // ============================================================================
 // Main plugin class
