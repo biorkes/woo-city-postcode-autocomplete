@@ -3,7 +3,7 @@
  * Plugin Name:       City & Postcode Autocomplete for WooCommerce
  * Plugin URI:        https://github.com/biorkes/woo-city-postcode-autocomplete
  * Description:       City and postcode autocomplete for WooCommerce and FunnelKit checkout, powered by GeoNames postal code data. Supports multiple countries with admin upload and per-country dataset management.
- * Version:           1.0.5
+ * Version:           1.0.6
  * Author:            biorkes
  * Author URI:        https://github.com/biorkes
  * License:           GPL-2.0-or-later
@@ -34,7 +34,7 @@ $geo_cl_update_checker->getVcsApi()->enableReleaseAssets();
 
 final class GEO_Checkout_Localities {
 
-	const VERSION     = '1.0.5';
+	const VERSION     = '1.0.6';
 	const SLUG        = 'woo-city-postcode-autocomplete';
 	const AJAX_ACTION = 'geo_cl_search_localities';
 	const NONCE_AJAX  = 'geo_cl_search_localities';
@@ -896,61 +896,85 @@ final class GEO_Checkout_Localities {
 			return;
 		}
 
-		$term_norm       = self::normalize( $term );
-		$state_norm      = self::normalize( $state_label );
-		$state_code_norm = strtoupper( trim( $state ) );
-
-		global $wpdb;
-		$tl    = self::table_localities();
-		$where = [ 'country_code = %s' ];
-		$args  = [ $country ];
-
-		/*
-		 * State / province filter.
-		 *
-		 * WooCommerce state codes don't always map to GeoNames admin1_code.
-		 * Example: Spain — WC uses province codes (V, A, CS...) stored in
-		 * GeoNames admin2_code; admin1_code holds the region (VC, CT...).
-		 *
-		 * We match the WC state against ALL four columns so search works
-		 * regardless of whether WC states map to admin1 or admin2.
-		 */
-		if ( '' !== $state_code_norm || '' !== $state_norm ) {
-			$sc = [];
-
-			if ( '' !== $state_code_norm ) {
-				$sc[]   = 'admin1_code = %s';
-				$args[] = $state_code_norm;
-				$sc[]   = 'admin2_code = %s';
-				$args[] = $state_code_norm;
-			}
-
-			if ( '' !== $state_norm ) {
-				$sc[]   = 'admin1_name_norm = %s';
-				$args[] = $state_norm;
-				$sc[]   = 'admin2_name_norm = %s';
-				$args[] = $state_norm;
-			}
-
-			$where[] = '(' . implode( ' OR ', $sc ) . ')';
+		$term_norm         = self::normalize( $term );
+		$state_norm        = self::normalize_state_label( $state_label );
+		$state_code_norm   = strtoupper( trim( $state ) );
+		$state_code_suffix = '';
+		if ( preg_match( '/^[A-Z]{2}-(.+)$/', $state_code_norm, $m ) ) {
+			$state_code_suffix = $m[1];
 		}
 
-		// Text search across place name, municipality, and postcode.
-		$where[] = '(place_name_norm LIKE %s OR admin2_name_norm LIKE %s OR postcode LIKE %s)';
-		$args[]  = $wpdb->esc_like( $term_norm ) . '%';
-		$args[]  = '%' . $wpdb->esc_like( $term_norm ) . '%';
-		$args[]  = $wpdb->esc_like( $term ) . '%';
+		global $wpdb;
+		$tl = self::table_localities();
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		$sql = 'SELECT id, place_name, postcode, country_code, admin1_name, admin2_name, accuracy
-			FROM ' . $tl . '
-			WHERE ' . implode( ' AND ', $where ) . '
-			ORDER BY accuracy DESC, place_name_norm ASC
-			LIMIT 20';
+		// Build the text search condition (shared by both queries).
+		$text_condition = '(place_name_norm LIKE %s OR admin2_name_norm LIKE %s OR postcode LIKE %s)';
+		$text_args      = [
+			$wpdb->esc_like( $term_norm ) . '%',
+			'%' . $wpdb->esc_like( $term_norm ) . '%',
+			$wpdb->esc_like( $term ) . '%',
+		];
 
-		$rows    = $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ); // phpcs:ignore
+		$rows = [];
+
+		// ---- Step 1: try WITH state filter ---------------------------------
+		if ( '' !== $state_code_norm || '' !== $state_norm ) {
+			$sc   = [];
+			$s_args = [];
+
+			if ( '' !== $state_code_norm ) {
+				$sc[]     = 'admin1_code = %s';
+				$s_args[] = $state_code_norm;
+				$sc[]     = 'admin2_code = %s';
+				$s_args[] = $state_code_norm;
+			}
+			if ( '' !== $state_code_suffix ) {
+				$sc[]     = 'admin1_code = %s';
+				$s_args[] = $state_code_suffix;
+				$sc[]     = 'admin2_code = %s';
+				$s_args[] = $state_code_suffix;
+			}
+			if ( '' !== $state_norm ) {
+				$sc[]     = 'admin1_name_norm = %s';
+				$s_args[] = $state_norm;
+				$sc[]     = 'admin2_name_norm = %s';
+				$s_args[] = $state_norm;
+				$sc[]     = 'admin1_name_norm LIKE %s';
+				$s_args[] = $wpdb->esc_like( $state_norm ) . '%';
+				$sc[]     = 'admin2_name_norm LIKE %s';
+				$s_args[] = $wpdb->esc_like( $state_norm ) . '%';
+			}
+
+			$sql_with_state = 'SELECT id, place_name, postcode, country_code, admin1_name, admin2_name, accuracy
+				FROM ' . $tl . '
+				WHERE country_code = %s
+				AND (' . implode( ' OR ', $sc ) . ')
+				AND ' . $text_condition . '
+				ORDER BY accuracy DESC, place_name_norm ASC
+				LIMIT 20';
+
+			$rows = $wpdb->get_results( // phpcs:ignore
+				$wpdb->prepare( $sql_with_state, array_merge( [ $country ], $s_args, $text_args ) ), // phpcs:ignore
+				ARRAY_A
+			);
+		}
+
+		// ---- Step 2: fallback — country + term only (no state filter) ------
+		if ( empty( $rows ) ) {
+			$sql_no_state = 'SELECT id, place_name, postcode, country_code, admin1_name, admin2_name, accuracy
+				FROM ' . $tl . '
+				WHERE country_code = %s
+				AND ' . $text_condition . '
+				ORDER BY accuracy DESC, place_name_norm ASC
+				LIMIT 20';
+
+			$rows = $wpdb->get_results( // phpcs:ignore
+				$wpdb->prepare( $sql_no_state, array_merge( [ $country ], $text_args ) ), // phpcs:ignore
+				ARRAY_A
+			);
+		}
+
 		$results = [];
-
 		foreach ( $rows as $row ) {
 			$locality = $row['place_name'];
 			$admin2   = $row['admin2_name'];
@@ -1188,6 +1212,32 @@ final class GEO_Checkout_Localities {
 	// -------------------------------------------------------------------------
 	// Normalization helpers
 	// -------------------------------------------------------------------------
+
+	/**
+	 * Normalise a state/province label for matching.
+	 * Strips common administrative suffixes that WooCommerce appends but
+	 * GeoNames omits (e.g. "županija", "county", "oblast", "voivodeship"...).
+	 */
+	public static function normalize_state_label( $value ) {
+		$norm = self::normalize( $value );
+
+		// Strip common suffixes used in WC state labels but absent in GeoNames.
+		$suffixes = [
+			' zupanija', ' županija',
+			' county', ' district', ' oblast',
+			' province', ' region', ' prefecture',
+			' voivodeship', ' department',
+			' autonomous community',
+		];
+		foreach ( $suffixes as $suffix ) {
+			if ( substr( $norm, -strlen( $suffix ) ) === $suffix ) {
+				$norm = trim( substr( $norm, 0, -strlen( $suffix ) ) );
+				break;
+			}
+		}
+
+		return $norm;
+	}
 
 	/**
 	 * Normalise a string for loose matching:
