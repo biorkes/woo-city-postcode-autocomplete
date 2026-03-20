@@ -3,7 +3,7 @@
  * Plugin Name:       City & Postcode Autocomplete for WooCommerce
  * Plugin URI:        https://github.com/biorkes/woo-city-postcode-autocomplete
  * Description:       City and postcode autocomplete for WooCommerce and FunnelKit checkout, powered by GeoNames postal code data. Supports multiple countries with admin upload and per-country dataset management.
- * Version:           1.0.6
+ * Version:           1.0.7
  * Author:            biorkes
  * Author URI:        https://github.com/biorkes
  * License:           GPL-2.0-or-later
@@ -34,7 +34,7 @@ $geo_cl_update_checker->getVcsApi()->enableReleaseAssets();
 
 final class GEO_Checkout_Localities {
 
-	const VERSION     = '1.0.6';
+	const VERSION     = '1.0.7';
 	const SLUG        = 'woo-city-postcode-autocomplete';
 	const AJAX_ACTION = 'geo_cl_search_localities';
 	const NONCE_AJAX  = 'geo_cl_search_localities';
@@ -909,10 +909,10 @@ final class GEO_Checkout_Localities {
 
 		// Build the text search condition (shared by both queries).
 		$text_condition = '(place_name_norm LIKE %s OR admin2_name_norm LIKE %s OR postcode LIKE %s)';
-		$text_args      = [
-			$wpdb->esc_like( $term_norm ) . '%',
-			'%' . $wpdb->esc_like( $term_norm ) . '%',
-			$wpdb->esc_like( $term ) . '%',
+		$text_args = [
+		    '%' . $wpdb->esc_like( $term_norm ) . '%',  // беше без % отпред
+		    '%' . $wpdb->esc_like( $term_norm ) . '%',
+		    $wpdb->esc_like( $term ) . '%',
 		];
 
 		$rows = [];
