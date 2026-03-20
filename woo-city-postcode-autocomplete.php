@@ -18,6 +18,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+require_once plugin_dir_path( __FILE__ ) . 'lib/plugin-update-checker/plugin-update-checker.php';
+$geo_cl_update_checker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+    'https://github.com/biorkes/woo-city-postcode-autocomplete/',
+    __FILE__,
+    'woo-city-postcode-autocomplete'
+);
+$geo_cl_update_checker->setBranch( 'main' );
+
 // ============================================================================
 // Main plugin class
 // ============================================================================
