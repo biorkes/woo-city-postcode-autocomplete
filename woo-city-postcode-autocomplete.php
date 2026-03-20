@@ -27,6 +27,7 @@ $geo_cl_update_checker = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpd
 $geo_cl_update_checker->setBranch( 'main' );
 $geo_cl_update_checker->getVcsApi()->enableReleaseAssets(); 
 
+
 // ============================================================================
 // Main plugin class
 // ============================================================================
@@ -998,10 +999,9 @@ final class GEO_Checkout_Localities {
 		} elseif ( wp_script_is( 'select2', 'registered' ) ) {
 			wp_enqueue_script( 'select2' );
 			wp_enqueue_style( 'select2' );
-		} else {
-			// Neither library available — autocomplete will gracefully skip init.
-			return;
 		}
+		// If neither is available, JS will gracefully exit via getSelectLib() —
+		// but we still register and localize so GeoCL is always defined on the page.
 
 		wp_register_script( 'geo-cl-inline', '', [ 'jquery' ], self::VERSION, true );
 		wp_enqueue_script( 'geo-cl-inline' );
@@ -1011,7 +1011,7 @@ final class GEO_Checkout_Localities {
 			'nonce'   => wp_create_nonce( self::NONCE_AJAX ),
 			'i18n'    => [
 				'placeholder'   => __( 'Select city / locality', 'woo-city-postcode-autocomplete' ),
-				'searching'     => __( 'Searching\u2026', 'woo-city-postcode-autocomplete' ),
+				'searching'     => __( 'Searching...', 'woo-city-postcode-autocomplete' ),
 				'inputTooShort' => __( 'Type at least 2 characters', 'woo-city-postcode-autocomplete' ),
 				'noResults'     => __( 'No localities found', 'woo-city-postcode-autocomplete' ),
 			],
