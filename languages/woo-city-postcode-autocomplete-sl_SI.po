@@ -1,0 +1,28 @@
+# Slovenian translation for City & Postcode Autocomplete for WooCommerce
+# Copyright (C) 2026
+# This file is distributed under the same license as the plugin.
+msgid ""
+msgstr ""
+"Project-Id-Version: City & Postcode Autocomplete for WooCommerce 1.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/biorkes/woo-city-postcode-autocomplete\n"
+"POT-Creation-Date: 2026-03-26\n"
+"PO-Revision-Date: 2026-03-26\n"
+"Last-Translator: \n"
+"Language-Team: Slovenian\n"
+"Language: sl_SI\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3);\n"
+
+msgid "Select city / locality"
+msgstr "Izberite mesto / kraj"
+
+msgid "Searching..."
+msgstr "Iskanje..."
+
+msgid "Type at least 2 characters"
+msgstr "Vnesite vsaj 2 znaka"
+
+msgid "No localities found"
+msgstr "Ni najdenih krajev"
