@@ -48,6 +48,8 @@ final class GEO_Checkout_Localities {
 		register_activation_hook( __FILE__, [ __CLASS__, 'activate' ] );
 		register_uninstall_hook( __FILE__, [ __CLASS__, 'uninstall' ] );
 
+		load_plugin_textdomain( 'woo-city-postcode-autocomplete', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+
 		// WooCommerce dependency check.
 		add_action( 'admin_notices', [ __CLASS__, 'maybe_notice_wc_missing' ] );
 
