@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Read(//c/ProgramData/chocolatey/**)",
+      "Read(//usr/**)",
+      "Bash(command -v php)",
+      "Bash(command -v node)",
+      "Bash(command -v perl)",
+      "Bash(grep -h \"^msgid \" \"D:/Packages/woo-city-postcode-autocomplete/languages/\"*.po)",
+      "Bash(grep:*)"
+    ]
+  }
+}

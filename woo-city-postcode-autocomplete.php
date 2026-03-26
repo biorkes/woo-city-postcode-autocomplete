@@ -3,7 +3,7 @@
  * Plugin Name:       City & Postcode Autocomplete for WooCommerce
  * Plugin URI:        https://github.com/biorkes/woo-city-postcode-autocomplete
  * Description:       City and postcode autocomplete for WooCommerce and FunnelKit checkout, powered by GeoNames postal code data. Supports multiple countries with admin upload and per-country dataset management.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Author:            biorkes
  * Author URI:        https://github.com/biorkes
  * License:           GPL-2.0-or-later
@@ -34,7 +34,7 @@ $geo_cl_update_checker->getVcsApi()->enableReleaseAssets();
 
 final class GEO_Checkout_Localities {
 
-	const VERSION     = '1.1.0';
+	const VERSION     = '1.1.1';
 	const SLUG        = 'woo-city-postcode-autocomplete';
 	const AJAX_ACTION = 'geo_cl_search_localities';
 	const NONCE_AJAX  = 'geo_cl_search_localities';
@@ -892,9 +892,10 @@ final class GEO_Checkout_Localities {
 		$country     = isset( $_GET['country'] )     ? strtoupper( sanitize_text_field( wp_unslash( $_GET['country'] ) ) ) : ''; // phpcs:ignore
 		$state       = isset( $_GET['state'] )       ? sanitize_text_field( wp_unslash( $_GET['state'] ) )       : ''; // phpcs:ignore
 		$state_label = isset( $_GET['state_label'] ) ? sanitize_text_field( wp_unslash( $_GET['state_label'] ) ) : ''; // phpcs:ignore
+		$page        = isset( $_GET['page'] )        ? max( 1, intval( $_GET['page'] ) )                         : 1;  // phpcs:ignore
 
 		if ( mb_strlen( $term, 'UTF-8' ) < 2 || '' === $country ) {
-			wp_send_json_success( [ 'results' => [] ] );
+			wp_send_json_success( [ 'results' => [], 'more' => false ] );
 			return;
 		}
 
@@ -917,12 +918,14 @@ final class GEO_Checkout_Localities {
 		    $wpdb->esc_like( $term ) . '%',
 		];
 
+		$per_page         = 20;
+		$offset           = ( $page - 1 ) * $per_page;
 		$rows             = [];
 		$has_state_filter = '' !== $state_code_norm || '' !== $state_norm;
 
 		// ---- Step 1: try WITH state filter ---------------------------------
 		if ( $has_state_filter ) {
-			$sc   = [];
+			$sc     = [];
 			$s_args = [];
 
 			if ( '' !== $state_code_norm ) {
@@ -954,10 +957,10 @@ final class GEO_Checkout_Localities {
 				AND (' . implode( ' OR ', $sc ) . ')
 				AND ' . $text_condition . '
 				ORDER BY accuracy DESC, place_name_norm ASC
-				LIMIT 20';
+				LIMIT %d OFFSET %d';
 
 			$rows = $wpdb->get_results( // phpcs:ignore
-				$wpdb->prepare( $sql_with_state, array_merge( [ $country ], $s_args, $text_args ) ), // phpcs:ignore
+				$wpdb->prepare( $sql_with_state, array_merge( [ $country ], $s_args, $text_args, [ $per_page + 1, $offset ] ) ), // phpcs:ignore
 				ARRAY_A
 			);
 		}
@@ -972,12 +975,18 @@ final class GEO_Checkout_Localities {
 				WHERE country_code = %s
 				AND ' . $text_condition . '
 				ORDER BY accuracy DESC, place_name_norm ASC
-				LIMIT 20';
+				LIMIT %d OFFSET %d';
 
 			$rows = $wpdb->get_results( // phpcs:ignore
-				$wpdb->prepare( $sql_no_state, array_merge( [ $country ], $text_args ) ), // phpcs:ignore
+				$wpdb->prepare( $sql_no_state, array_merge( [ $country ], $text_args, [ $per_page + 1, $offset ] ) ), // phpcs:ignore
 				ARRAY_A
 			);
+		}
+
+		// Detect whether a next page exists (we fetched one extra row).
+		$more = count( $rows ) > $per_page;
+		if ( $more ) {
+			array_pop( $rows );
 		}
 
 		$results = [];
@@ -1005,7 +1014,7 @@ final class GEO_Checkout_Localities {
 			];
 		}
 
-		wp_send_json_success( [ 'results' => $results ] );
+		wp_send_json_success( [ 'results' => $results, 'more' => $more ] );
 	}
 
 	// -------------------------------------------------------------------------
@@ -1110,7 +1119,7 @@ final class GEO_Checkout_Localities {
 				var $wrapper = $cityField.find('.woocommerce-input-wrapper').first();
 				if (!$wrapper.length) $wrapper = $cityField;
 
-				var $select = $('<select id="geo_cl_city_select" class="wfacp-form-control" style="width:100%"></select>');
+				var $select = $('<select id="geo_cl_city_select" class="wfacp-form-control" style="width:100%"><option value=""></option></select>');
 				$wrapper.append($select);
 
 				$select[lib]({
@@ -1129,14 +1138,18 @@ final class GEO_Checkout_Localities {
 								term:        params.term || '',
 								country:     getCountry($form),
 								state:       $state.val() || '',
-								state_label: $state.find('option:selected').text() || ''
+								state_label: $state.find('option:selected').text() || '',
+								page:        params.page || 1
 							};
 						},
-						processResults: function (resp) {
+						processResults: function (resp, params) {
 							if (!resp || !resp.success || !resp.data || !resp.data.results) {
-								return { results: [] };
+								return { results: [], pagination: { more: false } };
 							}
-							return { results: resp.data.results };
+							return {
+								results: resp.data.results,
+								pagination: { more: !!resp.data.more }
+							};
 						},
 						cache: true
 					},
