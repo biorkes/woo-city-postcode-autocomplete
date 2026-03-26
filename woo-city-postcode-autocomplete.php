@@ -3,7 +3,7 @@
  * Plugin Name:       City & Postcode Autocomplete for WooCommerce
  * Plugin URI:        https://github.com/biorkes/woo-city-postcode-autocomplete
  * Description:       City and postcode autocomplete for WooCommerce and FunnelKit checkout, powered by GeoNames postal code data. Supports multiple countries with admin upload and per-country dataset management.
- * Version:           1.0.7
+ * Version:           1.0.8
  * Author:            biorkes
  * Author URI:        https://github.com/biorkes
  * License:           GPL-2.0-or-later
@@ -34,7 +34,7 @@ $geo_cl_update_checker->getVcsApi()->enableReleaseAssets();
 
 final class GEO_Checkout_Localities {
 
-	const VERSION     = '1.0.7';
+	const VERSION     = '1.0.8';
 	const SLUG        = 'woo-city-postcode-autocomplete';
 	const AJAX_ACTION = 'geo_cl_search_localities';
 	const NONCE_AJAX  = 'geo_cl_search_localities';
@@ -915,10 +915,11 @@ final class GEO_Checkout_Localities {
 		    $wpdb->esc_like( $term ) . '%',
 		];
 
-		$rows = [];
+		$rows             = [];
+		$has_state_filter = '' !== $state_code_norm || '' !== $state_norm;
 
 		// ---- Step 1: try WITH state filter ---------------------------------
-		if ( '' !== $state_code_norm || '' !== $state_norm ) {
+		if ( $has_state_filter ) {
 			$sc   = [];
 			$s_args = [];
 
@@ -960,7 +961,10 @@ final class GEO_Checkout_Localities {
 		}
 
 		// ---- Step 2: fallback — country + term only (no state filter) ------
-		if ( empty( $rows ) ) {
+		// Only fall back when no state was provided; if a state was given but
+		// returned no matches, return empty rather than showing results from
+		// the wrong region.
+		if ( empty( $rows ) && ! $has_state_filter ) {
 			$sql_no_state = 'SELECT id, place_name, postcode, country_code, admin1_name, admin2_name, accuracy
 				FROM ' . $tl . '
 				WHERE country_code = %s
